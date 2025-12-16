@@ -7,7 +7,7 @@ export interface UserProfile {
   id: string;
   email: string;
   nome: string;
-  role: 'admin' | 'operador' | 'visual'; // Mapeia de tipo_usuario: administrador -> admin, operador -> operador, visitante -> visual
+  role: 'admin' | 'operador' | 'visual' | 'pendente'; // administrador -> admin, operador -> operador, visitante -> visual, pendente -> pendente
 }
 
 export interface Rota {
@@ -23,6 +23,9 @@ export interface Rota {
   qtdPaletes: number;
   taxaOcupacao: number;
   clientes: (string | null)[];
+  entregaStatusByIndex?: ('Pendente' | 'Entregue' | 'Devolvida')[];
+  entregaComentarioByIndex?: (string | null)[];
+  cargaSlots?: string[][];
   observacoes: string;
   status: 'Criada' | 'Em Transito' | 'Finalizada';
 }
@@ -62,6 +65,8 @@ interface AppContextType {
   isAuthenticated: boolean;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateEntregaStatus: (rotaId: string, ordem: number, status: 'Pendente' | 'Entregue' | 'Devolvida') => Promise<void>;
+  updateEntregaComentario: (rotaId: string, ordem: number, comentario: string) => Promise<void>;
   
   clientes: Cliente[];
   veiculos: VeiculoData[];
@@ -117,7 +122,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // #region agent log
     const logData = {location:'AppContext.tsx:116',message:'user state changed',data:{hasUser:!!user,userId:user?.id,userEmail:user?.email,userRole:user?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'};
     console.log('🔍 DEBUG LOG:', logData);
-    fetch('http://127.0.0.1:7242/ingest/37cc7752-b3c6-49b0-9131-ea0a99123884',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+    const agentLogUrl = import.meta.env.VITE_AGENT_LOG_URL;
+    if (agentLogUrl) {
+      fetch(agentLogUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+    }
     // #endregion
   }, [user]); 
   
@@ -131,7 +139,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [sugestoesRotas] = useState<RotaPadrao[]>([]);
 
   // Função auxiliar para mapear tipo_usuario para role
-  const mapTipoUsuarioToRole = (tipoUsuario: string): 'admin' | 'operador' | 'visual' => {
+  const mapTipoUsuarioToRole = (tipoUsuario: string): 'admin' | 'operador' | 'visual' | 'pendente' => {
     switch (tipoUsuario) {
       case 'administrador':
         return 'admin';
@@ -139,6 +147,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return 'operador';
       case 'visitante':
         return 'visual';
+      case 'pendente':
+        return 'pendente';
       default:
         return 'visual';
     }
@@ -201,7 +211,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         supabase.from('fretistas').select('*'),
         supabase.from('veiculos').select('*, fretistas(nome)'),
         supabase.from('motoristas').select('nome'),
-        supabase.from('rotas').select(`*, fretistas(nome), veiculos(placa, tipo_veiculo), motoristas(nome), rota_clientes(cliente_id, ordem_entrega, clientes(nome))`).order('created_at', { ascending: false })
+        supabase.from('rotas').select(`*, fretistas(nome), veiculos(placa, tipo_veiculo), motoristas(nome), rota_clientes(cliente_id, ordem_entrega, status_entrega, comentario_entrega, clientes(nome)), mapa_carregamento(posicao_palete, clientes(nome))`).order('created_at', { ascending: false })
       ]);
 
       if (clientesRes.status === 'fulfilled' && clientesRes.value.data) setClientes(clientesRes.value.data);
@@ -225,10 +235,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (rotasRes.status === 'fulfilled' && rotasRes.value.data) {
         const mappedRotas: Rota[] = rotasRes.value.data.map((r: any) => {
           const clientesArr = Array(10).fill(null);
+          const statusArr: ('Pendente' | 'Entregue' | 'Devolvida')[] = Array(10).fill('Pendente');
+          const cargaSlotsArr: string[][] = [];
+          const comentariosArr: (string | null)[] = Array(10).fill(null);
           // @ts-ignore
-          if (r.rota_clientes) r.rota_clientes.forEach(rc => {
-             if (rc.ordem_entrega < 10 && rc.clientes) clientesArr[rc.ordem_entrega] = rc.clientes.nome;
+          if (r.rota_clientes) r.rota_clientes.forEach((rc: any) => {
+             if (rc.ordem_entrega < 10) {
+               // @ts-ignore
+               if (rc.clientes) clientesArr[rc.ordem_entrega] = rc.clientes.nome;
+               if (rc.status_entrega) statusArr[rc.ordem_entrega] = rc.status_entrega;
+               if (typeof rc.comentario_entrega === 'string') comentariosArr[rc.ordem_entrega] = rc.comentario_entrega;
+             }
           });
+          if (r.mapa_carregamento) {
+            r.mapa_carregamento.forEach((mc: any) => {
+              const pos = (mc.posicao_palete || 1) - 1;
+              if (!cargaSlotsArr[pos]) cargaSlotsArr[pos] = [];
+              if (mc.clientes?.nome) cargaSlotsArr[pos].push(mc.clientes.nome);
+            });
+          }
           return {
             id: r.id,
             dataEntrega: r.data_entrega,
@@ -246,9 +271,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             qtdPaletes: r.qtd_paletes,
             taxaOcupacao: r.taxa_ocupacao,
             clientes: clientesArr,
+            entregaStatusByIndex: statusArr,
+            entregaComentarioByIndex: comentariosArr,
+            cargaSlots: cargaSlotsArr,
             observacoes: r.observacoes || '',
-            status: 'Criada'
-          };
+            status: r.status || 'Criada'
+          } as Rota;
         });
         setRotas(mappedRotas);
       }
@@ -351,13 +379,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
            for (let i = 0; i < rota.clientes.length; i++) {
              if (rota.clientes[i]) {
                const { data: cData } = await supabase.from('clientes').select('id').eq('nome', rota.clientes[i]).single();
-               if (cData) await supabase.from('rota_clientes').insert({ rota_id: rotaInserted.id, cliente_id: cData.id, ordem_entrega: i });
+               if (cData) {
+                 await supabase.from('rota_clientes').insert({ rota_id: rotaInserted.id, cliente_id: cData.id, ordem_entrega: i, status_entrega: 'Pendente', comentario_entrega: null });
+               }
+             }
+           }
+           if (rota.cargaSlots && rota.cargaSlots.length > 0) {
+             for (let p = 0; p < rota.cargaSlots.length; p++) {
+               const arr = rota.cargaSlots[p] || [];
+               for (const nome of arr) {
+                 if (!nome) continue;
+                 const { data: cData } = await supabase.from('clientes').select('id').eq('nome', nome).single();
+                 if (cData) {
+                   await supabase.from('mapa_carregamento').insert({ rota_id: rotaInserted.id, posicao_palete: p + 1, cliente_id: cData.id });
+                 }
+               }
              }
            }
         }
         fetchData();
       }
     } catch (e) { console.error(e); }
+  };
+
+  const updateEntregaStatus = async (rotaId: string, ordem: number, status: 'Pendente' | 'Entregue' | 'Devolvida') => {
+    try {
+      await supabase.from('rota_clientes').update({ status_entrega: status }).eq('rota_id', rotaId).eq('ordem_entrega', ordem);
+      fetchData();
+    } catch (e) {
+      console.error('Erro ao atualizar status da entrega:', e);
+    }
+  };
+
+  const updateEntregaComentario = async (rotaId: string, ordem: number, comentario: string) => {
+    try {
+      await supabase.from('rota_clientes').update({ comentario_entrega: comentario }).eq('rota_id', rotaId).eq('ordem_entrega', ordem);
+      fetchData();
+    } catch (e) {
+      console.error('Erro ao atualizar comentário da entrega:', e);
+    }
   };
 
   const seedDatabase = async () => {
@@ -543,7 +603,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      user, isAuthenticated: !!user, login, logout,
+      user, isAuthenticated: !!user, login, logout, updateEntregaStatus, updateEntregaComentario,
       clientes, veiculos, regioes, fretistas, motoristas, loading,
       addCliente, addVeiculo, addRegiao, removeCliente, removeVeiculo,
       rotas, addRota, rotasPadrao, addRotaPadrao, gerarRoteiroDePadrao, sugestoesRotas,

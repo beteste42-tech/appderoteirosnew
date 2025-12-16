@@ -2,12 +2,12 @@
 
 // Tipos de Veículos e suas capacidades (kg) e estimativa de paletes/layout
 export const VEICULOS_TYPES: Record<string, { capacity: number; pallets: number; layout: string }> = {
-  'BONGO': { capacity: 1500, pallets: 4, layout: '2x2' },
+  'BONGO': { capacity: 1500, pallets: 3, layout: '2x2' },
   'DELIVERY': { capacity: 2500, pallets: 6, layout: '2x3' },
   '3/4': { capacity: 4500, pallets: 8, layout: '2x4' },
   'TOCO': { capacity: 8000, pallets: 12, layout: '2x6' },
   'TRUCK': { capacity: 14000, pallets: 16, layout: '2x8' }, // Alguns trucks na lista são 16000, usaremos a média ou específico na placa
-  'CARRETA': { capacity: 25000, pallets: 28, layout: '2x14' },
+  'CARRETA': { capacity: 25000, pallets: 26, layout: '2x13' },
 };
 
 export const REGIOES = [

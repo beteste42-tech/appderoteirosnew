@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { Truck } from 'lucide-react';
+import { Truck, FileDown } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { exportElementToPdf } from '../lib/pdf';
 
 const LoadingMap = () => {
   const { veiculosTypes } = useApp();
@@ -34,6 +35,20 @@ const LoadingMap = () => {
     displayRows.push([i*2, i*2+1]);
   }
 
+  const printRef = useRef<HTMLDivElement>(null);
+  const handleExportPdf = async () => {
+    if (!printRef.current) return;
+    const info = [
+      { label: 'Tipo de Veículo', value: selectedVehicleType },
+    ];
+    await exportElementToPdf(printRef.current, {
+      fileName: `Mapa_${selectedVehicleType}.pdf`,
+      title: 'Roteiriza GDM — Mapa de Carregamento',
+      subtitle: selectedVehicleType,
+      info,
+      logoUrl: 'https://i.ibb.co/Hp2fcxR1/grupo-docemel-logo-square.png'
+    });
+  };
   return (
     <div className="p-6 max-w-7xl mx-auto pb-20">
       <div className="flex items-center justify-between mb-8">
@@ -43,7 +58,7 @@ const LoadingMap = () => {
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 p-6">
+      <div ref={printRef} className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 p-6">
         
         <div className="mb-8 max-w-md">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Selecione o Tipo de Veículo</label>
@@ -123,6 +138,14 @@ const LoadingMap = () => {
         <p className="text-center text-gray-500 dark:text-gray-400 mt-8 text-sm">
           Clique nos quadrantes para atribuir um cliente à posição no baú.
         </p>
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={handleExportPdf}
+            className="bg-primary text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 hover:opacity-90 transition"
+          >
+            <FileDown size={16} /> Gerar PDF
+          </button>
+        </div>
 
       </div>
     </div>

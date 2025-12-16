@@ -6,6 +6,7 @@ import { Mail, Lock, Loader2, AlertTriangle } from 'lucide-react';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { seedUsers, isAuthenticated, login, user } = useApp();
@@ -16,13 +17,18 @@ const Login = () => {
     // #region agent log
     const logData = {location:'Login.tsx:15',message:'isAuthenticated check in useEffect',data:{isAuthenticated,hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'};
     console.log('🔍 DEBUG LOG:', logData);
-    fetch('http://127.0.0.1:7242/ingest/37cc7752-b3c6-49b0-9131-ea0a99123884',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+    const agentLogUrl = import.meta.env.VITE_AGENT_LOG_URL;
+    if (agentLogUrl) {
+      fetch(agentLogUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+    }
     // #endregion
     if (user) {
       // #region agent log
       const logData2 = {location:'Login.tsx:19',message:'user exists in useEffect, navigating',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'};
       console.log('🔍 DEBUG LOG:', logData2);
-      fetch('http://127.0.0.1:7242/ingest/37cc7752-b3c6-49b0-9131-ea0a99123884',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData2)}).catch(()=>{});
+      if (agentLogUrl) {
+        fetch(agentLogUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData2)}).catch(()=>{});
+      }
       // #endregion
       navigate('/rotas');
     }
@@ -37,7 +43,10 @@ const Login = () => {
       // #region agent log
       const logData1 = {location:'Login.tsx:33',message:'calling login function',data:{email,isAuthenticatedBefore:isAuthenticated,hasUserBefore:!!user},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'};
       console.log('🔍 DEBUG LOG:', logData1);
-      fetch('http://127.0.0.1:7242/ingest/37cc7752-b3c6-49b0-9131-ea0a99123884',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData1)}).catch(()=>{});
+      const agentLogUrl = import.meta.env.VITE_AGENT_LOG_URL;
+      if (agentLogUrl) {
+        fetch(agentLogUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData1)}).catch(()=>{});
+      }
       // #endregion
       // Usamos a função login do contexto que garante o carregamento do perfil
       await login(email, password);
@@ -45,7 +54,9 @@ const Login = () => {
       // #region agent log
       const logData2 = {location:'Login.tsx:37',message:'login function returned',data:{isAuthenticatedAfter:isAuthenticated,hasUserAfter:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'};
       console.log('🔍 DEBUG LOG:', logData2);
-      fetch('http://127.0.0.1:7242/ingest/37cc7752-b3c6-49b0-9131-ea0a99123884',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData2)}).catch(()=>{});
+      if (agentLogUrl) {
+        fetch(agentLogUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData2)}).catch(()=>{});
+      }
       // #endregion
       
       // Usa user diretamente ao invés de isAuthenticated para evitar problemas de closure
@@ -55,7 +66,9 @@ const Login = () => {
       // #region agent log
       const logData3 = {location:'Login.tsx:42',message:'after delay checking user state',data:{isAuthenticated,hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'};
       console.log('🔍 DEBUG LOG:', logData3);
-      fetch('http://127.0.0.1:7242/ingest/37cc7752-b3c6-49b0-9131-ea0a99123884',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData3)}).catch(()=>{});
+      if (agentLogUrl) {
+        fetch(agentLogUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData3)}).catch(()=>{});
+      }
       // #endregion
       
       // Verifica usando user diretamente para evitar problemas de closure
@@ -63,14 +76,18 @@ const Login = () => {
         // #region agent log
         const logData4 = {location:'Login.tsx:46',message:'user exists, navigating',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'};
         console.log('🔍 DEBUG LOG:', logData4);
-        fetch('http://127.0.0.1:7242/ingest/37cc7752-b3c6-49b0-9131-ea0a99123884',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData4)}).catch(()=>{});
+        if (agentLogUrl) {
+          fetch(agentLogUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData4)}).catch(()=>{});
+        }
         // #endregion
         navigate('/rotas');
       } else {
         // #region agent log
         const logData5 = {location:'Login.tsx:50',message:'user is null, not navigating',data:{isAuthenticated,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'};
         console.log('🔍 DEBUG LOG:', logData5);
-        fetch('http://127.0.0.1:7242/ingest/37cc7752-b3c6-49b0-9131-ea0a99123884',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData5)}).catch(()=>{});
+        if (agentLogUrl) {
+          fetch(agentLogUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData5)}).catch(()=>{});
+        }
         // #endregion
         setError('Erro: Usuário não foi carregado após login. Tente novamente.');
       }
@@ -153,13 +170,16 @@ const Login = () => {
                   <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-primary transition-colors" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-4 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                  className="block w-full pl-10 pr-12 py-4 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
                   placeholder="••••••••"
                   required
                 />
+                <button type="button" onClick={() => setShowPassword(s => !s)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
+                  {showPassword ? 'Ocultar' : 'Mostrar'}
+                </button>
               </div>
             </div>
 
@@ -181,10 +201,10 @@ const Login = () => {
 
           <div className="mt-8 pt-6 border-t border-gray-100 dark:border-slate-800 text-center">
             <button 
-              onClick={handleSeedUsers}
+              onClick={() => navigate('/cadastro')}
               className="text-xs text-gray-400 hover:text-primary underline decoration-dotted"
             >
-              Primeiro Acesso? Restaurar Usuários Padrão
+              Ainda não tem cadastro? Clique aqui!
             </button>
           </div>
         </div>

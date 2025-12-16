@@ -186,7 +186,7 @@ const Settings = () => {
         const batch = clientesToInsert.slice(i, i + batchSize);
         const { error } = await supabase
           .from('clientes')
-          .upsert(batch, { onConflict: 'codigo', ignoreDuplicates: false });
+          .upsert(batch, { onConflict: 'nome', ignoreDuplicates: false });
         
         if (error) {
           console.error('Erro ao inserir lote:', error);

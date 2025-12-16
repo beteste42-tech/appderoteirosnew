@@ -18,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { icon: Map, label: 'Roteirização', path: '/roteirizacao' },
     { icon: Truck, label: 'Mapa de Carga', path: '/mapa-carregamento' },
     { icon: MapPin, label: 'Rotas Padrão', path: '/rotas-padrao' },
+    { icon: LayoutDashboard, label: 'Resumo', path: '/resumo' },
     { icon: Settings, label: 'Configurações', path: '/configuracoes' },
   ];
 

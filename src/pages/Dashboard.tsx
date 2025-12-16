@@ -1,17 +1,25 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Search, Filter, Truck, MapPin, Package, Calculator, XCircle, LayoutDashboard } from 'lucide-react';
 import TruckMapVisual from '../components/TruckMapVisual';
 import PageHeader from '../components/PageHeader';
 import { cn } from '../lib/utils';
+import { FileDown } from 'lucide-react';
+import { exportElementToPdf } from '../lib/pdf';
 
 const Dashboard = () => {
-  const { rotas, clientes, fretistas, motoristas, veiculos, regioes, theme } = useApp();
+  const { rotas, clientes, fretistas, motoristas, veiculos, regioes, theme, user, updateEntregaStatus, updateEntregaComentario } = useApp();
   // ... (Lógica de filtros e cálculos mantida igual)
-  const initialFilters = { search: '', dataEntrega: '', fretista: '', motorista: '', placa: '', regiao: '', cliente: '' };
+  const initialFilters = { search: '', dataEntrega: '', fretista: '', motorista: '', placa: '', regiao: '', cliente: '', rede: '', uf: '', vendedor: '', cidade: '' };
   const [filters, setFilters] = useState(initialFilters);
   const clearFilters = () => setFilters(initialFilters);
+
+  const clienteByNome = useMemo(() => {
+    const map = new Map<string, typeof clientes[number]>();
+    clientes.forEach(c => map.set(c.nome, c));
+    return map;
+  }, [clientes]);
 
   const filteredRotas = useMemo(() => {
     return rotas.filter(rota => {
@@ -22,7 +30,12 @@ const Dashboard = () => {
       const matchPlaca = !filters.placa || rota.placa === filters.placa;
       const matchRegiao = !filters.regiao || rota.regiao === filters.regiao;
       const matchCliente = !filters.cliente || rota.clientes.includes(filters.cliente);
-      return matchSearch && matchData && matchFretista && matchMotorista && matchPlaca && matchRegiao && matchCliente;
+      const clienteObjs = rota.clientes.filter(Boolean).map(n => clienteByNome.get(n as string)).filter(Boolean) as any[];
+      const matchRede = !filters.rede || clienteObjs.some(c => c.rede === filters.rede);
+      const matchUf = !filters.uf || clienteObjs.some(c => c.uf === filters.uf);
+      const matchVendedor = !filters.vendedor || clienteObjs.some(c => c.vendedor === filters.vendedor);
+      const matchCidade = !filters.cidade || clienteObjs.some(c => c.cidade === filters.cidade);
+      return matchSearch && matchData && matchFretista && matchMotorista && matchPlaca && matchRegiao && matchCliente && matchRede && matchUf && matchVendedor && matchCidade;
     });
   }, [rotas, filters]);
 
@@ -55,7 +68,73 @@ const Dashboard = () => {
   const chartTextColor = theme === 'dark' ? '#94a3b8' : '#475569';
   const chartBarColor = '#003e2a';
   const uniquePlacas = Array.from(new Set(veiculos.map(v => v.placa)));
+  const uniqueRedes = Array.from(new Set(clientes.map(c => c.rede).filter(Boolean)));
+  const uniqueUFs = Array.from(new Set(clientes.map(c => c.uf).filter(Boolean)));
+  const uniqueVendedores = Array.from(new Set(clientes.map(c => c.vendedor).filter(Boolean)));
+  const uniqueCidades = Array.from(new Set(clientes.map(c => c.cidade).filter(Boolean)));
 
+  const [statusByIndex, setStatusByIndex] = useState<Record<number, 'Pendente' | 'Entregue' | 'Devolvida'>>({});
+  useEffect(() => {
+    if (currentRota && currentRota.entregaStatusByIndex) {
+      const map: Record<number, 'Pendente' | 'Entregue' | 'Devolvida'> = {};
+      currentRota.entregaStatusByIndex.forEach((s, i) => { map[i] = s || 'Pendente'; });
+      setStatusByIndex(map);
+    } else {
+      setStatusByIndex({});
+    }
+  }, [currentRota?.id]);
+
+  const nextStatus = (s: 'Pendente' | 'Entregue' | 'Devolvida'): 'Pendente' | 'Entregue' | 'Devolvida' => {
+    if (s === 'Pendente') return 'Entregue';
+    if (s === 'Entregue') return 'Devolvida';
+    return 'Pendente';
+  };
+  const canEditStatus = user?.role === 'admin' || user?.role === 'operador';
+  const onStatusClick = (idx: number) => {
+    const current = statusByIndex[idx] || 'Pendente';
+    const updated = nextStatus(current);
+    setStatusByIndex(prev => ({ ...prev, [idx]: updated }));
+    if (currentRota) updateEntregaStatus(currentRota.id, idx, updated);
+  };
+
+  const [commentOpenIdx, setCommentOpenIdx] = useState<number | null>(null);
+  const [commentDraft, setCommentDraft] = useState<string>('');
+  useEffect(() => {
+    if (currentRota && typeof commentOpenIdx === 'number') {
+      const existing = currentRota.entregaComentarioByIndex?.[commentOpenIdx] || '';
+      setCommentDraft(existing || '');
+    }
+  }, [commentOpenIdx, currentRota?.id]);
+  const handleSaveComment = async (idx: number) => {
+    if (!currentRota) return;
+    const text = (commentDraft || '').slice(0, 500);
+    const existing = currentRota.entregaComentarioByIndex?.[idx] || '';
+    const combined = existing ? `${existing}\n${text}` : text;
+    await updateEntregaComentario(currentRota.id, idx, combined);
+    setCommentDraft('');
+  };
+
+  const printRef = useRef<HTMLDivElement>(null);
+  const handleExportPdf = async () => {
+    if (!currentRota || !printRef.current) return;
+    const info = [
+      { label: 'Data', value: new Date(currentRota.dataEntrega).toLocaleDateString('pt-BR') },
+      { label: 'Região', value: currentRota.regiao },
+      { label: 'Nº Carga', value: currentRota.numeroCarga },
+      { label: 'Placa', value: currentRota.placa },
+      { label: 'Motorista', value: currentRota.motorista },
+      { label: 'Veículo', value: currentRota.tipoVeiculo },
+      { label: 'Peso', value: `${currentRota.pesoCarga} kg` },
+      { label: 'Ocupação', value: `${currentRota.taxaOcupacao.toFixed(1)}%` },
+    ];
+    await exportElementToPdf(printRef.current, {
+      fileName: `Rota_${currentRota.id}.pdf`,
+      title: 'Roteiriza GDM — Rota',
+      subtitle: `Rota ${currentRota.id}`,
+      info,
+      logoUrl: 'https://i.ibb.co/Hp2fcxR1/grupo-docemel-logo-square.png'
+    });
+  };
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-20">
       <PageHeader 
@@ -76,7 +155,7 @@ const Dashboard = () => {
           </button>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
           <div className="relative col-span-1 sm:col-span-2 lg:col-span-1">
             <Search className="absolute left-3 top-3 text-gray-400" size={18} />
             <input type="text" placeholder="Pesquisa Dinâmica..." className="w-full pl-10 p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
@@ -101,6 +180,22 @@ const Dashboard = () => {
           <select className="p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.cliente} onChange={e => setFilters({...filters, cliente: e.target.value})}>
             <option value="">Todos Clientes</option>
             {clientes.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+          </select>
+          <select className="p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.rede} onChange={e => setFilters({...filters, rede: e.target.value})}>
+            <option value="">Todas Redes</option>
+            {uniqueRedes.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select className="p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.uf} onChange={e => setFilters({...filters, uf: e.target.value})}>
+            <option value="">Todos UF</option>
+            {uniqueUFs.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+          </select>
+          <select className="p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.vendedor} onChange={e => setFilters({...filters, vendedor: e.target.value})}>
+            <option value="">Todos Vendedores</option>
+            {uniqueVendedores.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <select className="p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.cidade} onChange={e => setFilters({...filters, cidade: e.target.value})}>
+            <option value="">Todas Cidades</option>
+            {uniqueCidades.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
       </div>
@@ -196,7 +291,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3" ref={printRef}>
             <div className="lg:col-span-2 p-6 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-slate-700">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8 bg-gray-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-gray-100 dark:border-slate-700">
                 {[
@@ -227,17 +322,73 @@ const Dashboard = () => {
                     <tr>
                       <th className="px-6 py-3">Seq.</th>
                       <th className="px-6 py-3">Cliente</th>
-                      <th className="px-6 py-3 text-right">Status</th>
+                      <th className="px-6 py-3 text-right w-[220px]">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {currentRota.clientes.map((cliente, idx) => (
                       cliente && (
-                        <tr key={idx} className="border-b dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <React.Fragment key={idx}>
+                        <tr className="border-b dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                           <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{idx + 1}</td>
-                          <td className="px-6 py-4 font-medium">{cliente}</td>
-                          <td className="px-6 py-4 text-right"><span className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 text-xs font-bold px-3 py-1 rounded-full">Pendente</span></td>
+                          <td className="px-6 py-4 font-medium">
+                            {cliente}
+                            {currentRota.entregaComentarioByIndex?.[idx] ? (
+                              String(currentRota.entregaComentarioByIndex[idx])
+                                .split('\n')
+                                .filter(Boolean)
+                                .map((line, i) => (
+                                  <div key={i} className="mt-1 text-xs italic text-gray-400 dark:text-gray-300 break-all">
+                                    {line}
+                                  </div>
+                                ))
+                            ) : null}
+                            {commentOpenIdx === idx ? (
+                              <div className="mt-3">
+                                <textarea
+                                  value={commentDraft}
+                                  onChange={(e) => setCommentDraft(e.target.value.slice(0,500))}
+                                  placeholder="Digite um comentário (até 500 caracteres)"
+                                  className="w-full border border-gray-300 dark:border-slate-700 rounded-md p-2 text-sm bg-white dark:bg-slate-700"
+                                  rows={3}
+                                />
+                                <div className="flex justify-end mt-2 gap-2">
+                                  <button
+                                    onClick={() => setCommentOpenIdx(null)}
+                                    className="px-3 py-1 text-xs rounded-md border bg-gray-100 dark:bg-slate-700"
+                                  >Cancelar</button>
+                                  <button
+                                    onClick={() => handleSaveComment(idx)}
+                                    className="px-3 py-1 text-xs rounded-md border bg-green-600 text-white"
+                                  >Salvar</button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                            <button
+                              onClick={() => canEditStatus && onStatusClick(idx)}
+                              className={cn(
+                                "text-xs font-bold px-3 py-1 rounded-full border inline-flex items-center justify-center transition-colors",
+                                statusByIndex[idx] === 'Entregue' ? "bg-green-100 text-green-800 border-green-200"
+                                : statusByIndex[idx] === 'Devolvida' ? "bg-purple-100 text-purple-800 border-purple-200"
+                                : "bg-red-100 text-red-800 border-red-200",
+                                !canEditStatus && "opacity-60 cursor-not-allowed"
+                              )}
+                              disabled={!canEditStatus}
+                              title={canEditStatus ? "Clique para alternar status" : "Visualização apenas"}
+                            >
+                              {statusByIndex[idx] || 'Pendente'}
+                            </button>
+                            <button
+                              onClick={() => setCommentOpenIdx(commentOpenIdx === idx ? null : idx)}
+                              className="ml-2 text-xs px-3 py-1 rounded-full border bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100 transition"
+                            >
+                              Comentário
+                            </button>
+                          </td>
                         </tr>
+                        </React.Fragment>
                       )
                     ))}
                   </tbody>
@@ -248,7 +399,37 @@ const Dashboard = () => {
             <div className="p-8 bg-gray-50 dark:bg-slate-900 flex flex-col items-center justify-center relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-20"></div>
               <h3 className="font-bold text-gray-700 dark:text-white mb-6 text-center w-full uppercase tracking-widest text-sm">Mapa de Carregamento</h3>
-              <TruckMapVisual clientes={currentRota.clientes} tipoVeiculo={currentRota.tipoVeiculo} />
+              {(() => {
+                const slots = currentRota.cargaSlots?.map(arr => (arr && arr.length ? arr.join(' + ') : null)) || [];
+                const statusSlots = (currentRota.cargaSlots || []).map((arr) => {
+                  if (!arr || arr.length === 0) return 'Pendente' as const;
+                  const statuses = arr
+                    .map(nome => {
+                      const idx = currentRota.clientes.findIndex(c => c === nome);
+                      return statusByIndex[idx] || 'Pendente';
+                    });
+                  if (statuses.some(s => s === 'Pendente')) return 'Pendente';
+                  if (statuses.some(s => s === 'Devolvida')) return 'Devolvida';
+                  return 'Entregue';
+                });
+                return <TruckMapVisual clientes={slots} tipoVeiculo={currentRota.tipoVeiculo} statusBySlot={statusSlots} />;
+              })()}
+              <div className="mt-6">
+                <button
+                  onClick={handleExportPdf}
+                  className="bg-primary text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 hover:opacity-90 transition"
+                >
+                  <FileDown size={16} /> Compartilhar PDF
+                </button>
+              </div>
+              {currentRota?.observacoes && (
+                <div className="mt-8 w-full">
+                  <h4 className="font-bold text-gray-800 dark:text-white mb-2 text-sm uppercase tracking-widest">Informações Complementares</h4>
+                  <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 text-sm text-gray-700 dark:text-gray-300">
+                    {currentRota.observacoes}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

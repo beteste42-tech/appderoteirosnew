@@ -8,6 +8,8 @@ import Routing from './pages/Routing';
 import LoadingMap from './pages/LoadingMap';
 import StandardRoutes from './pages/StandardRoutes';
 import Settings from './pages/Settings';
+import Register from './pages/Register';
+import Resumo from './pages/Resumo';
 import { Menu, Loader2, RefreshCw } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { cn } from './lib/utils';
@@ -88,18 +90,27 @@ VITE_SUPABASE_ANON_KEY=sua-chave-anon-aqui`}
   );
 };
 
+import Profile from './pages/Profile';
+
 function AppRoutes() {
+  const { user } = useApp();
+  const isPendente = user?.role === 'pendente';
+  const isVisual = user?.role === 'visual';
+  const canEdit = user?.role === 'admin' || user?.role === 'operador';
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/cadastro" element={<Register />} />
       
       <Route element={<ProtectedLayout />}>
-        <Route path="/" element={<Navigate to="/rotas" replace />} />
-        <Route path="/rotas" element={<Dashboard />} />
-        <Route path="/roteirizacao" element={<Routing />} />
-        <Route path="/mapa-carregamento" element={<LoadingMap />} />
-        <Route path="/rotas-padrao" element={<StandardRoutes />} />
-        <Route path="/configuracoes" element={<Settings />} />
+        <Route path="/" element={<Navigate to={isPendente ? "/perfil" : "/rotas"} replace />} />
+        <Route path="/perfil" element={<Profile />} />
+        <Route path="/rotas" element={isPendente ? <Navigate to="/perfil" replace /> : <Dashboard />} />
+        <Route path="/roteirizacao" element={canEdit ? <Routing /> : <Navigate to={isPendente ? "/perfil" : "/rotas"} replace />} />
+        <Route path="/mapa-carregamento" element={canEdit ? <LoadingMap /> : <Navigate to={isPendente ? "/perfil" : "/rotas"} replace />} />
+        <Route path="/rotas-padrao" element={canEdit ? <StandardRoutes /> : <Navigate to={isPendente ? "/perfil" : "/rotas"} replace />} />
+        <Route path="/configuracoes" element={canEdit ? <Settings /> : <Navigate to={isPendente ? "/perfil" : "/rotas"} replace />} />
+        <Route path="/resumo" element={<Resumo />} />
       </Route>
     </Routes>
   );
