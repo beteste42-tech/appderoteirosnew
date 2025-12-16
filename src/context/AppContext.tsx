@@ -204,8 +204,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- FETCH DATA ---
   const fetchData = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('⚠️ fetchData: Usuário não encontrado, pulando fetch');
+      return;
+    }
     try {
+      console.log('🔄 fetchData: Iniciando busca de dados do Supabase...');
       const [clientesRes, fretistasRes, veiculosRes, motoristasRes, rotasRes] = await Promise.allSettled([
         supabase.from('clientes').select('*'),
         supabase.from('fretistas').select('*'),
@@ -214,8 +218,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         supabase.from('rotas').select(`*, fretistas(nome), veiculos(placa, tipo_veiculo), motoristas(nome), rota_clientes(cliente_id, ordem_entrega, status_entrega, comentario_entrega, clientes(nome)), mapa_carregamento(posicao_palete, clientes(nome))`).order('created_at', { ascending: false })
       ]);
 
-      if (clientesRes.status === 'fulfilled' && clientesRes.value.data) setClientes(clientesRes.value.data);
-      if (fretistasRes.status === 'fulfilled' && fretistasRes.value.data) setFretistas(fretistasRes.value.data);
+      // Log de debug para cada query
+      console.log('📊 fetchData: Resultados das queries:');
+      console.log('  - Clientes:', clientesRes.status, clientesRes.status === 'fulfilled' ? `✅ ${clientesRes.value.data?.length || 0} registros` : `❌ ${clientesRes.reason?.message || 'Erro desconhecido'}`);
+      console.log('  - Fretistas:', fretistasRes.status, fretistasRes.status === 'fulfilled' ? `✅ ${fretistasRes.value.data?.length || 0} registros` : `❌ ${fretistasRes.reason?.message || 'Erro desconhecido'}`);
+      console.log('  - Veículos:', veiculosRes.status, veiculosRes.status === 'fulfilled' ? `✅ ${veiculosRes.value.data?.length || 0} registros` : `❌ ${veiculosRes.reason?.message || 'Erro desconhecido'}`);
+      console.log('  - Motoristas:', motoristasRes.status, motoristasRes.status === 'fulfilled' ? `✅ ${motoristasRes.value.data?.length || 0} registros` : `❌ ${motoristasRes.reason?.message || 'Erro desconhecido'}`);
+      console.log('  - Rotas:', rotasRes.status, rotasRes.status === 'fulfilled' ? `✅ ${rotasRes.value.data?.length || 0} registros` : `❌ ${rotasRes.reason?.message || 'Erro desconhecido'}`);
+
+      // Log de erros detalhados
+      if (clientesRes.status === 'rejected') {
+        console.error('❌ Erro ao buscar clientes:', clientesRes.reason);
+      } else if (clientesRes.value.error) {
+        console.error('❌ Erro na query de clientes:', clientesRes.value.error);
+      }
+      if (fretistasRes.status === 'rejected') {
+        console.error('❌ Erro ao buscar fretistas:', fretistasRes.reason);
+      } else if (fretistasRes.value.error) {
+        console.error('❌ Erro na query de fretistas:', fretistasRes.value.error);
+      }
+      if (veiculosRes.status === 'rejected') {
+        console.error('❌ Erro ao buscar veículos:', veiculosRes.reason);
+      } else if (veiculosRes.value.error) {
+        console.error('❌ Erro na query de veículos:', veiculosRes.value.error);
+      }
+      if (motoristasRes.status === 'rejected') {
+        console.error('❌ Erro ao buscar motoristas:', motoristasRes.reason);
+      } else if (motoristasRes.value.error) {
+        console.error('❌ Erro na query de motoristas:', motoristasRes.value.error);
+      }
+      if (rotasRes.status === 'rejected') {
+        console.error('❌ Erro ao buscar rotas:', rotasRes.reason);
+      } else if (rotasRes.value.error) {
+        console.error('❌ Erro na query de rotas:', rotasRes.value.error);
+      }
+
+      if (clientesRes.status === 'fulfilled' && clientesRes.value.data) {
+        setClientes(clientesRes.value.data);
+        console.log(`✅ Clientes carregados: ${clientesRes.value.data.length} registros`);
+      }
+      if (fretistasRes.status === 'fulfilled' && fretistasRes.value.data) {
+        setFretistas(fretistasRes.value.data);
+        console.log(`✅ Fretistas carregados: ${fretistasRes.value.data.length} registros`);
+      }
       
       if (veiculosRes.status === 'fulfilled' && veiculosRes.value.data) {
         setVeiculos(veiculosRes.value.data.map((v: any) => ({
@@ -226,10 +271,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           capacidade: v.capacidade_kg,
           motoristaPadrao: ''
         })));
+        console.log(`✅ Veículos carregados: ${veiculosRes.value.data.length} registros`);
       }
 
       if (motoristasRes.status === 'fulfilled' && motoristasRes.value.data) {
         setMotoristas(motoristasRes.value.data.map((m: any) => m.nome));
+        console.log(`✅ Motoristas carregados: ${motoristasRes.value.data.length} registros`);
       }
 
       if (rotasRes.status === 'fulfilled' && rotasRes.value.data) {
@@ -279,9 +326,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } as Rota;
         });
         setRotas(mappedRotas);
+        console.log(`✅ Rotas carregadas: ${mappedRotas.length} registros`);
       }
+      
+      console.log('✅ fetchData: Busca de dados concluída');
     } catch (error) {
-      console.error("Erro ao carregar dados:", error);
+      console.error("❌ Erro ao carregar dados:", error);
     }
   };
 
