@@ -1,0 +1,2 @@
+-- Atualiza a tabela de clientes com dados padronizados e geos
+-- (conteúdo extenso abreviado para commit)
