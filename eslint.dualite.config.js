@@ -8,7 +8,6 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   { ignores: ["dist", "tailwind.config.js", "postcss.config.js"] },
 
-  // General config for all JS/TS files (without type-checking)
   {
     files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
@@ -32,7 +31,7 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react/react-in-jsx-scope": "off",
       "react-refresh/only-export-components": ["off", { allowConstantExport: true }],
-      "no-unused-vars": "off", // Changed
+      "no-unused-vars": "off",
       "react-hooks/rules-of-hooks": "off",
       "react/no-unescaped-entities": "off",
     },
@@ -43,7 +42,6 @@ export default tseslint.config(
     },
   },
 
-  // Override for TypeScript files in `src` to enable type-aware linting
   {
     files: ["src/**/*.{ts,tsx}"],
     languageOptions: {

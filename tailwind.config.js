@@ -1,18 +1,14 @@
-const defaultTheme = require('tailwindcss/defaultTheme')
+import defaultTheme from 'tailwindcss/defaultTheme';
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: 'class', // Habilita modo escuro via classe CSS
-  content: [
-    './src/**/*.{js,jsx,ts,tsx}',
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        // Paleta baseada no Grupo Docemel
         primary: {
-          DEFAULT: '#003e2a', // Verde Logo
-          light: '#005c3e',
+          DEFAULT: '#004D40',
+          light: '#1a5c52',
           dark: '#002418',
         },
         secondary: {
