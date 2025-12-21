@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Save, Calculator, Truck, MapPin, Package, FileDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import TruckMapVisual from '../components/TruckMapVisual';
+import RouteMap from '../components/RouteMapFinal';
 import { exportElementToPdf } from '../lib/pdf';
 import { supabase } from '../lib/supabase';
 
@@ -338,10 +339,32 @@ const Routing = () => {
             </div>
           </section>
 
-          <section ref={printRef} className="p-6 bg-gray-50 dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 flex flex-col items-center justify-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-20"></div>
-            <h3 className="font-bold text-gray-700 dark:text-white mb-6 text-center w-full uppercase tracking-widest text-sm">Mapa de Carregamento</h3>
-            <div className="grid grid-cols-2 gap-2 w-full max-w-md mb-6">
+        </div>
+
+      </div>
+
+      {/* Seção de Mapas - Largura Total */}
+      <div className="grid grid-cols-1 gap-6 mt-6">
+        
+        {/* Mapa de Rota */}
+        <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden w-full">
+          <div className="bg-primary px-6 py-3 flex items-center gap-2">
+            <MapPin className="text-white" size={20} />
+            <h2 className="text-white font-bold">MAPA DA ROTA</h2>
+          </div>
+          <div className="p-4 lg:p-6">
+            <RouteMap 
+              clientesSelecionados={clientesRota} 
+              todosClientes={clientes} 
+            />
+          </div>
+        </section>
+
+        {/* Mapa de Carregamento */}
+        <section ref={printRef} className="p-4 lg:p-6 bg-gray-50 dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 flex flex-col items-center justify-center relative overflow-hidden w-full min-h-[500px]">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-20"></div>
+          <h3 className="font-bold text-gray-700 dark:text-white mb-4 lg:mb-6 text-center w-full uppercase tracking-widest text-xs sm:text-sm">Mapa de Carregamento</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full mb-4 lg:mb-6">
               {(() => {
                 const pallets = veiculosTypes[formData.tipoVeiculo as keyof typeof veiculosTypes]?.pallets || slotsMulti.length;
                 const cols = 2;
@@ -389,7 +412,6 @@ const Routing = () => {
               </button>
             </div>
           </section>
-        </div>
 
       </div>
     </div>

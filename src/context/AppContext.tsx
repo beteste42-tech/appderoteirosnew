@@ -48,6 +48,16 @@ export interface Cliente {
   cidade: string;
   uf: string;
   bairro: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  endereco?: string | null;
+  complemento?: string | null;
+  cep?: string | null;
+  cnpj_cpf?: string | null;
+  ins_estadual?: string | null;
+  bloqueado?: string | null;
+  codigo_municipio?: string | null;
+  pais?: string | null;
 }
 
 export interface VeiculoData {
@@ -67,6 +77,7 @@ interface AppContextType {
   logout: () => Promise<void>;
   updateEntregaStatus: (rotaId: string, ordem: number, status: 'Pendente' | 'Entregue' | 'Devolvida') => Promise<void>;
   updateEntregaComentario: (rotaId: string, ordem: number, comentario: string) => Promise<void>;
+  updateRota: (rotaId: string, updates: Partial<Rota>) => Promise<void>;
   
   clientes: Cliente[];
   veiculos: VeiculoData[];
@@ -470,6 +481,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateRota = async (rotaId: string, updates: Partial<Rota>) => {
+    try {
+      // Atualizar campos básicos da rota
+      const { clientes, entregaStatusByIndex, entregaComentarioByIndex, cargaSlots, ...basicUpdates } = updates;
+      
+      // Atualizar tabela principal de rotas
+      if (Object.keys(basicUpdates).length > 0) {
+        await supabase.from('rotas').update(basicUpdates).eq('id', rotaId);
+      }
+      
+      // Atualizar clientes da rota se fornecido
+      if (clientes !== undefined) {
+        // Primeiro, remover clientes existentes
+        await supabase.from('rota_clientes').delete().eq('rota_id', rotaId);
+        
+        // Depois, inserir novos clientes
+        if (clientes.length > 0) {
+          const novosClientes = clientes.map((cliente, index) => ({
+            rota_id: rotaId,
+            ordem_entrega: index,
+            nome_cliente: cliente,
+            status_entrega: entregaStatusByIndex?.[index] || 'Pendente',
+            comentario_entrega: entregaComentarioByIndex?.[index] || null
+          }));
+          await supabase.from('rota_clientes').insert(novosClientes);
+        }
+      }
+      
+      // Atualizar slots de carga se fornecido
+      if (cargaSlots !== undefined) {
+        await supabase.from('rotas').update({ carga_slots: cargaSlots }).eq('id', rotaId);
+      }
+      
+      fetchData();
+    } catch (e) {
+      console.error('Erro ao atualizar rota:', e);
+    }
+  };
+
   const seedDatabase = async () => {
     try {
       setLoading(true);
@@ -653,7 +703,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      user, isAuthenticated: !!user, login, logout, updateEntregaStatus, updateEntregaComentario,
+      user, isAuthenticated: !!user, login, logout, updateEntregaStatus, updateEntregaComentario, updateRota,
       clientes, veiculos, regioes, fretistas, motoristas, loading,
       addCliente, addVeiculo, addRegiao, removeCliente, removeVeiculo,
       rotas, addRota, rotasPadrao, addRotaPadrao, gerarRoteiroDePadrao, sugestoesRotas,

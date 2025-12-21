@@ -10,10 +10,19 @@ import { exportElementToPdf } from '../lib/pdf';
 
 const Dashboard = () => {
   const { rotas, clientes, fretistas, motoristas, veiculos, regioes, theme, user, updateEntregaStatus, updateEntregaComentario } = useApp();
-  // ... (Lógica de filtros e cálculos mantida igual)
-  const initialFilters = { search: '', dataEntrega: '', fretista: '', motorista: '', placa: '', regiao: '', cliente: '', rede: '', uf: '', vendedor: '', cidade: '' };
+  const initialFilters = { search: '', dataEntrega: '', fretista: '', motorista: '', placa: '', regiao: '', cliente: '', rede: '', uf: '', vendedor: '', cidade: '', periodo: '' };
   const [filters, setFilters] = useState(initialFilters);
   const clearFilters = () => setFilters(initialFilters);
+
+  // Função para calcular data baseada no período
+  const getDataByPeriodo = (periodo: string) => {
+    if (!periodo) return '';
+    const hoje = new Date();
+    const dias = periodo === '7' ? 7 : periodo === '15' ? 15 : periodo === '30' ? 30 : 0;
+    if (dias === 0) return '';
+    const dataLimite = new Date(hoje.getTime() - dias * 24 * 60 * 60 * 1000);
+    return dataLimite.toISOString().split('T')[0];
+  };
 
   const clienteByNome = useMemo(() => {
     const map = new Map<string, typeof clientes[number]>();
@@ -24,7 +33,9 @@ const Dashboard = () => {
   const filteredRotas = useMemo(() => {
     return rotas.filter(rota => {
       const matchSearch = filters.search === '' || Object.values(rota).some(val => String(val).toLowerCase().includes(filters.search.toLowerCase()));
-      const matchData = !filters.dataEntrega || rota.dataEntrega === filters.dataEntrega;
+      const dataPeriodo = getDataByPeriodo(filters.periodo);
+      const matchData = (!filters.dataEntrega || rota.dataEntrega === filters.dataEntrega) && 
+                      (!filters.periodo || rota.dataEntrega >= dataPeriodo);
       const matchFretista = !filters.fretista || rota.fretista === filters.fretista;
       const matchMotorista = !filters.motorista || rota.motorista === filters.motorista;
       const matchPlaca = !filters.placa || rota.placa === filters.placa;
@@ -37,12 +48,13 @@ const Dashboard = () => {
       const matchCidade = !filters.cidade || clienteObjs.some(c => c.cidade === filters.cidade);
       return matchSearch && matchData && matchFretista && matchMotorista && matchPlaca && matchRegiao && matchCliente && matchRede && matchUf && matchVendedor && matchCidade;
     });
-  }, [rotas, filters]);
+  }, [rotas, filters, clienteByNome]);
 
   const totalRotas = filteredRotas.length;
   const totalPeso = filteredRotas.reduce((acc, curr) => acc + curr.pesoCarga, 0);
   const avgOcupacao = totalRotas > 0 ? filteredRotas.reduce((acc, curr) => acc + curr.taxaOcupacao, 0) / totalRotas : 0;
   const totalEntregas = filteredRotas.reduce((acc, curr) => acc + curr.clientes.filter(c => c !== null).length, 0);
+  const pesoMedio = totalRotas > 0 ? totalPeso / totalRotas : 0;
 
   const dataByFretista = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -55,6 +67,15 @@ const Dashboard = () => {
     filteredRotas.forEach(r => { 
       const entregas = r.clientes.filter(c => c).length;
       counts[r.placa] = (counts[r.placa] || 0) + entregas; 
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [filteredRotas]);
+
+  const dataByRegiao = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredRotas.forEach(r => { 
+      const entregas = r.clientes.filter(c => c).length;
+      counts[r.regiao] = (counts[r.regiao] || 0) + entregas; 
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [filteredRotas]);
@@ -160,6 +181,12 @@ const Dashboard = () => {
             <Search className="absolute left-3 top-3 text-gray-400" size={18} />
             <input type="text" placeholder="Pesquisa Dinâmica..." className="w-full pl-10 p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
           </div>
+          <select className="p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.periodo} onChange={e => setFilters({...filters, periodo: e.target.value})}>
+            <option value="">Período</option>
+            <option value="7">Últimos 7 dias</option>
+            <option value="15">Últimos 15 dias</option>
+            <option value="30">Últimos 30 dias</option>
+          </select>
           <input type="date" className="p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.dataEntrega} onChange={e => setFilters({...filters, dataEntrega: e.target.value})} />
           <select className="p-2.5 border-gray-200 dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-primary focus:border-primary" value={filters.fretista} onChange={e => setFilters({...filters, fretista: e.target.value})}>
             <option value="">Todos Fretistas</option>
@@ -201,7 +228,7 @@ const Dashboard = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-gradient-to-br from-primary to-primary-light dark:from-slate-800 dark:to-slate-700 rounded-2xl p-6 text-white shadow-lg border border-white/10">
           <div className="flex justify-between items-start">
             <div>
@@ -227,6 +254,15 @@ const Dashboard = () => {
               <h3 className="text-3xl font-bold mt-2 text-primary dark:text-white">{avgOcupacao.toFixed(1)}%</h3>
             </div>
             <div className="bg-primary/10 dark:bg-white/10 p-2.5 rounded-xl text-primary dark:text-white"><Calculator size={24} /></div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-800 rounded-2xl p-6 text-white shadow-lg border border-white/10">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-white/80 font-medium text-sm">Peso Médio</p>
+              <h3 className="text-3xl font-bold mt-2">{(pesoMedio/1000).toFixed(1)}t</h3>
+            </div>
+            <div className="bg-white/20 p-2.5 rounded-xl backdrop-blur-sm"><Calculator size={24} /></div>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 text-gray-800 dark:text-white shadow-lg border border-gray-200 dark:border-slate-700">
@@ -271,6 +307,20 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </div>
         </div>
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700">
+          <h3 className="text-lg font-bold text-gray-700 dark:text-white mb-6">Entregas por Região</h3>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dataByRegiao}>
+                <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#334155' : '#f1f5f9'} vertical={false} />
+                <XAxis dataKey="name" tick={{fontSize: 12, fill: chartTextColor}} axisLine={false} tickLine={false} />
+                <YAxis tick={{fill: chartTextColor}} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} />
+                <Bar dataKey="value" fill="#7c3aed" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
       {/* Route Details */}
@@ -306,7 +356,7 @@ const Dashboard = () => {
                 ].map((item, idx) => (
                   <div key={idx}>
                     <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold mb-1 tracking-wide">{item.label}</p>
-                    <p className={cn("font-bold text-gray-900 dark:text-white truncate text-lg", item.highlight && (parseFloat(item.value) > 100 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"))}>
+                    <p className={cn("font-bold text-gray-900 dark:text-white break-words text-lg", item.highlight && (parseFloat(item.value) > 100 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"))}>
                       {item.value}
                     </p>
                   </div>
@@ -317,15 +367,16 @@ const Dashboard = () => {
                 <MapPin size={18} className="text-primary" /> Sequência de Entrega
               </h3>
               <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700">
-                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                  <thead className="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-100 dark:bg-slate-700">
-                    <tr>
-                      <th className="px-6 py-3">Seq.</th>
-                      <th className="px-6 py-3">Cliente</th>
-                      <th className="px-6 py-3 text-right w-[220px]">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 min-w-[300px]">
+                      <thead className="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-100 dark:bg-slate-700">
+                        <tr>
+                          <th className="px-6 py-3 whitespace-nowrap">Seq.</th>
+                          <th className="px-6 py-3 whitespace-nowrap">Cliente</th>
+                          <th className="px-6 py-3 text-right whitespace-nowrap">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
                     {currentRota.clientes.map((cliente, idx) => (
                       cliente && (
                         <React.Fragment key={idx}>
@@ -391,8 +442,9 @@ const Dashboard = () => {
                         </React.Fragment>
                       )
                     ))}
-                  </tbody>
-                </table>
+                        </tbody>
+                      </table>
+                    </div>
               </div>
             </div>
 
